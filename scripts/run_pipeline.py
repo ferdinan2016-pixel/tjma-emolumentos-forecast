@@ -4,21 +4,17 @@ run_pipeline.py
 Ponto de entrada único da pipeline experimental descrita no Capítulo 3 do
 Projeto de Qualificação:
 
-    1. Geração/carga dos dados (atualmente: série SINTÉTICA - placeholder)
+    1. Carga dos dados (padrão: série REAL de arrecadação do FERJ/TJMA,
+       2019-2026; opção: série sintética, mantida para referência)
     2. Pré-processamento (features de defasagem, janelas, split temporal)
     3. Treinamento dos três modelos (SARIMA, LSTM, XGBoost)
-    4. Avaliação walk-forward (T+1) no conjunto de teste (2025)
-    5. Previsão multi-step do ano seguinte (2026)
+    4. Avaliação walk-forward (T+1) nos últimos 12 meses observados
+    5. Previsão multi-step dos 12 meses seguintes ("ano seguinte")
     6. Geração de gráficos e tabela de métricas em outputs/
 
 Uso:
-    python scripts/run_pipeline.py
-
-Não recebe argumentos: todos os parâmetros relevantes estão documentados
-nos módulos de src/. Ao substituir a série sintética pela série real do
-TJMA, basta trocar a chamada `gerar_serie_sintetica()` por uma função de
-carga da série real (ex.: `carregar_serie_ferj(caminho_csv)`), mantendo o
-restante da pipeline inalterado.
+    python scripts/run_pipeline.py            # usa a série REAL (padrão)
+    python scripts/run_pipeline.py sintetica   # usa a série sintética (placeholder)
 """
 
 from __future__ import annotations
@@ -34,6 +30,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.synthetic_generator import gerar_serie_sintetica
+from src.data.real_data_loader import carregar_serie_real
 from src.data.preprocessing import (
     train_test_split_temporal,
     construir_features_lag,
@@ -57,21 +54,30 @@ JANELA_LSTM = 12
 EPOCAS_LSTM = 150
 
 
-def main():
+def main(fonte: str = "real"):
+    """fonte: "real" (padrão, série FERJ/TJMA 2019-2026) ou "sintetica"
+    (placeholder anterior, mantido para referência/comparação)."""
     inicio = time.time()
     print("=" * 78)
     print("PIPELINE DE PREVISÃO DA ARRECADAÇÃO DE EMOLUMENTOS EXTRAJUDICIAIS — TJMA")
-    print("(prova de conceito com série SINTÉTICA — ver README.md)")
+    if fonte == "real":
+        print("(dados REAIS: arrecadação bruta mensal consolidada do FERJ/TJMA, 2019-2026)")
+    else:
+        print("(prova de conceito com série SINTÉTICA — ver README.md)")
     print("=" * 78)
 
+    sufixo = "" if fonte == "real" else "_sintetico"
+
     # 1) Dados -----------------------------------------------------------
-    print("\n[1/6] Gerando série sintética...")
-    df = gerar_serie_sintetica()
-    df.to_csv(RAIZ / "data" / "processed" / "serie_sintetica.csv")
+    print(f"\n[1/6] Carregando série ({fonte})...")
+    df = carregar_serie_real() if fonte == "real" else gerar_serie_sintetica()
+    nome_arquivo = "serie_real.csv" if fonte == "real" else "serie_sintetica.csv"
+    df.to_csv(RAIZ / "data" / "processed" / nome_arquivo)
     print(f"      {len(df)} observações mensais ({df.index[0].date()} a {df.index[-1].date()})")
 
     treino, teste = train_test_split_temporal(df, meses_teste=MESES_TESTE)
-    print(f"      treino: {len(treino)} meses | teste: {len(teste)} meses (ano de 2025)")
+    print(f"      treino: {len(treino)} meses ({treino.index[0].date()} a {treino.index[-1].date()})")
+    print(f"      teste : {len(teste)} meses ({teste.index[0].date()} a {teste.index[-1].date()})")
 
     resultados_teste = {}
 
@@ -112,65 +118,66 @@ def main():
     print(f"      concluído em {time.time()-t0:.1f}s")
 
     # 5) Avaliação ----------------------------------------------------------
-    print("\n[5/6] Avaliando modelos no conjunto de teste (2025)...")
+    print(f"\n[5/6] Avaliando modelos no conjunto de teste ({teste.index[0].date()} a {teste.index[-1].date()})...")
     y_real = teste["arrecadacao"].values
     linhas_metricas = {nome: resumo_metricas(y_real, pred) for nome, pred in resultados_teste.items()}
     df_metricas = pd.DataFrame(linhas_metricas).T
     df_metricas = df_metricas[["MAE", "RMSE", "MAPE (%)"]].sort_values("MAPE (%)")
     print(df_metricas.to_string(float_format=lambda v: f"{v:,.2f}"))
-    df_metricas.to_csv(RAIZ / "outputs" / "results" / "metricas_teste_2025.csv")
+    df_metricas.to_csv(RAIZ / "outputs" / "results" / f"metricas_teste{sufixo}.csv")
 
     df_predicoes = pd.DataFrame({"real": y_real}, index=teste.index)
     for nome, pred in resultados_teste.items():
         df_predicoes[nome] = pred
-    df_predicoes.to_csv(RAIZ / "outputs" / "results" / "predicoes_teste_2025.csv")
+    df_predicoes.to_csv(RAIZ / "outputs" / "results" / f"predicoes_teste{sufixo}.csv")
 
-    # 6) Previsão do "ano seguinte" (2026) — multi-step ---------------------
-    print("\n[6/6] Gerando previsão multi-step para 2026 (ano seguinte)...")
+    # 6) Previsão dos 12 meses seguintes — multi-step ------------------------
     datas_futuras = pd.date_range(df.index[-1] + pd.DateOffset(months=1), periods=12, freq="MS")
+    print(f"\n[6/6] Gerando previsão multi-step para {datas_futuras[0].date()} a {datas_futuras[-1].date()}...")
 
-    pred_sarima_2026 = forecast_multistep_sarimax(df["arrecadacao"], n_passos=12)
+    pred_sarima_fut = forecast_multistep_sarimax(df["arrecadacao"], n_passos=12)
 
     serie_completa_norm2, media2, desvio2 = normalizar(df["arrecadacao"].values)
     janela_atual = serie_completa_norm2[-JANELA_LSTM:].tolist()
-    pred_lstm_2026_norm = []
+    pred_lstm_fut_norm = []
     for _ in range(12):
         p = lstm.prever(np.array(janela_atual[-JANELA_LSTM:]))
-        pred_lstm_2026_norm.append(p)
+        pred_lstm_fut_norm.append(p)
         janela_atual.append(p)
-    pred_lstm_2026 = desnormalizar(np.array(pred_lstm_2026_norm), media2, desvio2)
+    pred_lstm_fut = desnormalizar(np.array(pred_lstm_fut_norm), media2, desvio2)
 
-    pred_xgb_2026 = forecast_multistep_xgboost(modelo_xgb, df_feats, n_passos=12)
+    pred_xgb_fut = forecast_multistep_xgboost(modelo_xgb, df_feats, n_passos=12)
 
-    df_forecast_2026 = pd.DataFrame(
+    df_forecast_fut = pd.DataFrame(
         {
-            "ARIMA/SARIMA": pred_sarima_2026,
-            "LSTM": pred_lstm_2026,
-            "XGBoost": pred_xgb_2026,
+            "ARIMA/SARIMA": pred_sarima_fut,
+            "LSTM": pred_lstm_fut,
+            "XGBoost": pred_xgb_fut,
         },
         index=datas_futuras,
     )
-    df_forecast_2026.to_csv(RAIZ / "outputs" / "results" / "previsao_2026.csv")
-    print(df_forecast_2026.apply(lambda c: c.map(lambda v: f"R$ {v:,.0f}")).to_string())
+    df_forecast_fut.to_csv(RAIZ / "outputs" / "results" / f"previsao_proximos_12_meses{sufixo}.csv")
+    print(df_forecast_fut.apply(lambda c: c.map(lambda v: f"R$ {v:,.0f}")).to_string())
 
-    total_2026 = df_forecast_2026.sum()
-    print("\n      Total anual previsto para 2026, por modelo:")
-    for nome, valor in total_2026.items():
+    total_fut = df_forecast_fut.sum()
+    print("\n      Total previsto para os próximos 12 meses, por modelo:")
+    for nome, valor in total_fut.items():
         print(f"        {nome:<14s}: R$ {valor:,.2f}")
 
     # Gráficos ---------------------------------------------------------------
     print("\nGerando gráficos em outputs/figures/ ...")
     fig_dir = RAIZ / "outputs" / "figures"
-    plot_serie_geral(df, teste.index[0], str(fig_dir / "01_serie_geral.png"))
-    plot_comparacao_teste(teste.index, y_real, resultados_teste, str(fig_dir / "02_comparacao_teste_2025.png"))
-    plot_metricas(df_metricas, str(fig_dir / "03_comparacao_metricas.png"))
+    plot_serie_geral(df, teste.index[0], str(fig_dir / f"01_serie_geral{sufixo}.png"), fonte=fonte)
+    plot_comparacao_teste(teste.index, y_real, resultados_teste, str(fig_dir / f"02_comparacao_teste{sufixo}.png"))
+    plot_metricas(df_metricas, str(fig_dir / f"03_comparacao_metricas{sufixo}.png"))
     plot_forecast_proximo_ano(df, datas_futuras, {
-        "ARIMA/SARIMA": pred_sarima_2026, "LSTM": pred_lstm_2026, "XGBoost": pred_xgb_2026,
-    }, str(fig_dir / "04_previsao_2026.png"))
+        "ARIMA/SARIMA": pred_sarima_fut, "LSTM": pred_lstm_fut, "XGBoost": pred_xgb_fut,
+    }, str(fig_dir / f"04_previsao_futura{sufixo}.png"))
 
     print(f"\nPipeline concluída em {time.time()-inicio:.1f}s.")
     print("Resultados em outputs/results/  |  Gráficos em outputs/figures/")
 
 
 if __name__ == "__main__":
-    main()
+    fonte_cli = sys.argv[1] if len(sys.argv) > 1 else "real"
+    main(fonte=fonte_cli)

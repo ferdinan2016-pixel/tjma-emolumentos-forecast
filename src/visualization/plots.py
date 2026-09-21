@@ -23,13 +23,18 @@ def _fmt_reais(ax):
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R$ {x/1e6:,.1f} mi"))
 
 
-def plot_serie_geral(df: pd.DataFrame, split_date, caminho_saida: str):
+def plot_serie_geral(df: pd.DataFrame, split_date, caminho_saida: str, fonte: str = "real"):
     fig, ax = plt.subplots(figsize=(11, 4.5))
     ax.plot(df.index, df["arrecadacao"], color="#1a1a1a", linewidth=1.3)
     ax.axvline(split_date, color="gray", linestyle="--", linewidth=1)
-    ax.text(split_date, df["arrecadacao"].max() * 0.97, "  início do teste (2025)", fontsize=9, color="gray")
-    ax.set_title("Série sintética de arrecadação de emolumentos extrajudiciais — TJMA (2012–2025)\n"
-                  "(placeholder até a obtenção da série real junto ao FERJ/Corregedoria)")
+    ax.text(split_date, df["arrecadacao"].max() * 0.97, "  início do teste", fontsize=9, color="gray")
+    ano_ini, ano_fim = df.index[0].year, df.index[-1].year
+    if fonte == "real":
+        ax.set_title(f"Arrecadação bruta mensal REAL das serventias extrajudiciais — TJMA/FERJ ({ano_ini}–{ano_fim})\n"
+                      "(consolidada a partir das publicações mensais oficiais do FERJ)")
+    else:
+        ax.set_title(f"Série sintética de arrecadação de emolumentos extrajudiciais — TJMA ({ano_ini}–{ano_fim})\n"
+                      "(placeholder — ver série real em outputs/figures/01_serie_geral.png)")
     _fmt_reais(ax)
     ax.grid(alpha=0.25)
     fig.tight_layout()
@@ -42,7 +47,8 @@ def plot_comparacao_teste(datas_teste, y_real, previsoes: dict, caminho_saida: s
     ax.plot(datas_teste, y_real, color=CORES["Real"], marker="o", label="Real", linewidth=2)
     for nome, y_pred in previsoes.items():
         ax.plot(datas_teste, y_pred, marker="o", linestyle="--", label=nome, color=CORES.get(nome))
-    ax.set_title("Previsão um-passo-à-frente (walk-forward) no período de teste (2025)")
+    periodo = f"{datas_teste[0].strftime('%m/%Y')} a {datas_teste[-1].strftime('%m/%Y')}"
+    ax.set_title(f"Previsão um-passo-à-frente (walk-forward) no período de teste ({periodo})")
     _fmt_reais(ax)
     ax.legend()
     ax.grid(alpha=0.25)
@@ -60,7 +66,7 @@ def plot_metricas(df_metricas: pd.DataFrame, caminho_saida: str):
         ax.set_title(coluna)
         ax.tick_params(axis="x", rotation=20)
         ax.grid(axis="y", alpha=0.25)
-    fig.suptitle("Comparação de métricas de erro entre arquiteturas (conjunto de teste, 2025)")
+    fig.suptitle("Comparação de métricas de erro entre arquiteturas (conjunto de teste)")
     fig.tight_layout()
     fig.savefig(caminho_saida, dpi=150)
     plt.close(fig)
@@ -73,7 +79,8 @@ def plot_forecast_proximo_ano(df_historico: pd.DataFrame, datas_futuras, previso
     for nome, y_pred in previsoes.items():
         ax.plot(datas_futuras, y_pred, marker="o", linestyle="--", label=f"Previsão {nome}", color=CORES.get(nome))
     ax.axvline(df_historico.index[-1], color="gray", linestyle=":", linewidth=1)
-    ax.set_title("Previsão da arrecadação do ano seguinte (2026) — horizonte de 12 meses")
+    periodo = f"{datas_futuras[0].strftime('%m/%Y')} a {datas_futuras[-1].strftime('%m/%Y')}"
+    ax.set_title(f"Previsão da arrecadação dos 12 meses seguintes ({periodo})")
     _fmt_reais(ax)
     ax.legend()
     ax.grid(alpha=0.25)
