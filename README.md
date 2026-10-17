@@ -16,7 +16,7 @@ serventias extrajudiciais do Maranhão, consolidada a partir das publicações
 mensais oficiais "Arrecadação Mensal das Serventias Extrajudiciais" (FERJ/TJMA)
 e do arquivo histórico consolidado fornecido pela Corregedoria:
 
-- **Período:** janeiro/2019 a julho/2026 — **91 meses, sem lacunas**.
+- **Período:** janeiro/2019 a setembro/2026 — **93 meses, sem lacunas**.
 - **Nível de agregação:** total estadual (soma da Arrecadação Bruta (A) de
   ~280–290 serventias por mês), conforme cenário-base definido na Seção 3.1 do
   Projeto de Qualificação.
@@ -82,7 +82,7 @@ e otimizador Adam, todos em `src/models/lstm_numpy.py`. Para a fase de
 dissertação, com mais tempo disponível, recomenda-se reimplementar em PyTorch
 ou TensorFlow/Keras, ganhando acesso a regularização (*dropout*), empilhamento
 de camadas e aceleração por GPU — mudança que não deve alterar qualitativamente
-os resultados obtidos aqui, dado o tamanho ainda moderado da série (91 meses).
+os resultados obtidos aqui, dado o tamanho ainda moderado da série (93 meses).
 
 ## Como executar
 
@@ -94,34 +94,34 @@ python3 scripts/run_pipeline.py sintetica  # série sintética (comparação)
 ```
 
 O script imprime o progresso de cada etapa, treina as três arquiteturas, avalia
-no período de teste (últimos 12 meses da série, ago/2025–jul/2026) e gera:
+no período de teste (últimos 12 meses da série, out/2025–set/2026) e gera:
 
 - `outputs/results/metricas_teste.csv` — MAE/RMSE/MAPE de cada modelo;
 - `outputs/results/predicoes_teste.csv` — previsão mês a mês vs. valor real;
 - `outputs/results/previsao_proximos_12_meses.csv` — previsão multi-step dos 12
-  meses seguintes (ago/2026–jul/2027), caso de uso central do objetivo geral
+  meses seguintes (out/2026–set/2027), caso de uso central do objetivo geral
   da pesquisa;
 - `outputs/figures/*.png` — os 4 gráficos comparativos.
 
-Tempo total de execução: cerca de 9 segundos em CPU comum (dados reais, 91
+Tempo total de execução: cerca de 15 segundos em CPU comum (dados reais, 93
 meses) — a maior parte gasta no treinamento da LSTM em NumPy.
 
-## Resultados obtidos (dados REAIS, jan/2019–jul/2026)
+## Resultados obtidos (dados REAIS, jan/2019–set/2026)
 
 Avaliação *walk-forward* um-passo-à-frente no período de teste (12 meses mais
-recentes: agosto/2025 a julho/2026):
+recentes: outubro/2025 a setembro/2026):
 
 | Modelo | MAE | RMSE | MAPE (%) |
 |---|---:|---:|---:|
-| **ARIMA/SARIMA** | 4.144.993,59 | 4.672.584,46 | **8,06** |
-| **XGBoost** | 4.350.871,84 | 5.843.185,72 | 8,08 |
-| **LSTM (NumPy)** | 4.692.830,00 | 6.320.507,42 | 9,02 |
+| **XGBoost** | 4.288.162,21 | 5.638.177,42 | **8,01** |
+| **ARIMA/SARIMA** | 4.237.753,15 | 4.745.362,49 | 8,36 |
+| **LSTM (NumPy)** | 5.594.108,73 | 7.965.571,28 | 10,29 |
 
-O modelo clássico (ARIMA/SARIMA) e o XGBoost tiveram desempenho muito próximo e
-levemente superior ao da LSTM — resultado consistente com a **Hipótese H1** do
+O XGBoost e o modelo clássico (ARIMA/SARIMA) tiveram desempenho muito próximo e
+superior ao da LSTM — resultado consistente com a **Hipótese H1** do
 Projeto de Qualificação (Seção 1.5), que antecipava que, com volume de dados
-ainda moderado (79 meses de treino), modelos clássicos ou de árvore tendem a
-igualar ou superar redes neurais recorrentes. O MAPE em torno de 8-9% é um
+ainda moderado (81 meses de treino), modelos clássicos ou de árvore tendem a
+igualar ou superar redes neurais recorrentes. O MAPE em torno de 8-10% é um
 patamar razoável para uma primeira rodada, sem otimização de hiperparâmetros —
 há margem clara de melhoria a explorar na fase de dissertação (ajuste fino da
 ordem do SARIMA, tamanho de janela e regularização da LSTM, profundidade do
@@ -132,7 +132,7 @@ Os quatro gráficos gerados (`outputs/figures/`) mostram, respectivamente:
 visivelmente a queda associada à pandemia em 2020; **(2)** a previsão
 um-passo-à-frente das três arquiteturas contra o valor real no período de
 teste; **(3)** a comparação de métricas de erro; e **(4)** a previsão
-multi-step dos 12 meses seguintes (ago/2026–jul/2027).
+multi-step dos 12 meses seguintes (out/2026–set/2027).
 
 ## Próximos passos (fase de dissertação)
 

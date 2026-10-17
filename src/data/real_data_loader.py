@@ -6,7 +6,7 @@ extrajudiciais do TJMA, consolidada a partir das publicações mensais oficiais
 "Arrecadação Mensal das Serventias Extrajudiciais" (FERJ/TJMA) e do arquivo
 histórico consolidado "faturamento_serventias_2019_2024_corrigido".
 
-Cobertura: janeiro/2019 a julho/2026 (91 meses), sem lacunas.
+Cobertura: janeiro/2019 a setembro/2026 (93 meses), sem lacunas.
 
 Metodologia de consolidação (ver data/raw/_parse_arrecadacao_pdfs.py e
 _consolidar_serie.py para o código de extração original):
