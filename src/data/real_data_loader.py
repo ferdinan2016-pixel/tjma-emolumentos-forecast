@@ -34,17 +34,10 @@ import pandas as pd
 
 CAMINHO_PADRAO = Path(__file__).resolve().parents[2] / "data" / "raw" / "arrecadacao_bruta_mensal_real_2019_2026.csv"
 
-# Reajustes anuais do INPC aplicados à tabela de emolumentos em janeiro de
-# cada ano (percentuais oficiais, conforme Resoluções GP do TJMA e notícia
-# institucional "Tabela dos serviços cartorários"; anos sem percentual
-# oficial localizado ficam com 0.0 e podem ser complementados depois).
-INPC_REAJUSTE_JANEIRO = {
-    2025: 4.84,
-    2026: 4.17,
-}
-
 # Anos de quebra normativa relevante identificados no Capítulo 2 do Projeto
-# de Qualificação (Lei nº 11.400/2020 e Lei nº 12.325/2024).
+# de Qualificação (Lei nº 11.400/2020 e Lei nº 12.325/2024). A coluna
+# `dummy_lei` fica disponível para experimentos, mas não é usada por nenhum
+# dos três modelos da comparação principal.
 QUEBRAS_LEGISLATIVAS = {2020, 2024}
 
 
@@ -54,7 +47,6 @@ def carregar_serie_real(caminho_csv: str | Path = CAMINHO_PADRAO) -> pd.DataFram
 
     Colunas devolvidas:
         arrecadacao   -> Arrecadação Bruta (A) somada de todas as serventias no mês (R$)
-        inpc_pct      -> reajuste do INPC aplicado naquele mês (0 fora de janeiro)
         dummy_lei     -> 1 nos anos de quebra legislativa adicional, 0 caso contrário
         mes           -> mês do ano (1-12)
         n_serventias  -> nº de serventias que reportaram arrecadação naquele mês (contexto)
@@ -63,13 +55,9 @@ def carregar_serie_real(caminho_csv: str | Path = CAMINHO_PADRAO) -> pd.DataFram
     df = df.set_index("competencia").sort_index()
     df.index.name = "competencia"
 
-    df["inpc_pct"] = [
-        INPC_REAJUSTE_JANEIRO.get(data.year, 0.0) if data.month == 1 else 0.0
-        for data in df.index
-    ]
     df["dummy_lei"] = [1 if data.year in QUEBRAS_LEGISLATIVAS else 0 for data in df.index]
     df = df.rename(columns={"arrecadacao_bruta": "arrecadacao"})
-    df = df[["arrecadacao", "inpc_pct", "dummy_lei", "mes", "n_serventias"]]
+    df = df[["arrecadacao", "dummy_lei", "mes", "n_serventias"]]
     return df
 
 

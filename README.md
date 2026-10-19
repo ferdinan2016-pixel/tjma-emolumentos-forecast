@@ -113,9 +113,15 @@ recentes: outubro/2025 a setembro/2026):
 
 | Modelo | MAE | RMSE | MAPE (%) |
 |---|---:|---:|---:|
-| **XGBoost** | 4.288.162,21 | 5.638.177,42 | **8,01** |
+| **XGBoost** | 4.384.294,86 | 5.835.451,46 | **8,20** |
 | **ARIMA/SARIMA** | 4.237.753,15 | 4.745.362,49 | 8,36 |
 | **LSTM (NumPy)** | 5.594.108,73 | 7.965.571,28 | 10,29 |
+
+As três arquiteturas usam apenas a série de arrecadação (o XGBoost, também o
+calendário, por meio de defasagens, média móvel e sazonalidade cíclica do mês),
+sem variáveis externas. As diferenças entre os modelos não são estatisticamente
+significativas com 12 meses de teste (Friedman, p = 0,78); ver
+`scripts/analise_estatistica.py`.
 
 O XGBoost e o modelo clássico (ARIMA/SARIMA) tiveram desempenho muito próximo e
 superior ao da LSTM — resultado consistente com a **Hipótese H1** do
@@ -142,9 +148,9 @@ multi-step dos 12 meses seguintes (out/2026–set/2027).
    aleatória), hoje usando configurações razoáveis mas não otimizadas.
 3. Reimplementar a LSTM em PyTorch/TensorFlow para viabilizar regularização e
    arquiteturas mais profundas (GRU, LSTM empilhada).
-4. Incorporar o INPC como regressora exógena de forma sistemática (a coluna já
-   existe em `real_data_loader.py`, mas com apenas dois anos de percentual
-   oficial mapeado — 2025 e 2026) e avaliar seu efeito marginal (Hipótese H2).
+4. Ampliar a comparação estatística (múltiplas origens de previsão e séries
+   por serventia ou comarca, com teste de Friedman e post hoc de Nemenyi) e
+   construir o ensemble com o combinador ajustado em período de validação.
 
 ## Testes
 
