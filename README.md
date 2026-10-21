@@ -79,7 +79,7 @@ Para manter o ambiente leve e sem dependência de bibliotecas de GPU/CUDA (que
 somam vários gigabytes e não trazem benefício em CPU), a LSTM foi implementada
 manualmente em NumPy puro — forward pass, *backpropagation through time* (BPTT)
 e otimizador Adam, todos em `src/models/lstm_numpy.py`. Para a fase de
-dissertação, com mais tempo disponível, recomenda-se reimplementar em PyTorch
+dissertação, com mais tempo disponível, se for pertinente, será reimplementado em PyTorch
 ou TensorFlow/Keras, ganhando acesso a regularização (*dropout*), empilhamento
 de camadas e aceleração por GPU — mudança que não deve alterar qualitativamente
 os resultados obtidos aqui, dado o tamanho ainda moderado da série (93 meses).
