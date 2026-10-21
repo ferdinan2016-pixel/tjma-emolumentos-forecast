@@ -119,8 +119,7 @@ recentes: outubro/2025 a setembro/2026):
 
 As três arquiteturas usam apenas a série de arrecadação (o XGBoost, também o
 calendário, por meio de defasagens, média móvel e sazonalidade cíclica do mês),
-sem variáveis externas. As diferenças entre os modelos não são estatisticamente
-significativas com 12 meses de teste (Friedman, p = 0,78); ver
+sem variáveis externas. ver
 `scripts/analise_estatistica.py`.
 
 O XGBoost e o modelo clássico (ARIMA/SARIMA) tiveram desempenho muito próximo e
@@ -148,9 +147,6 @@ multi-step dos 12 meses seguintes (out/2026–set/2027).
    aleatória), hoje usando configurações razoáveis mas não otimizadas.
 3. Reimplementar a LSTM em PyTorch/TensorFlow para viabilizar regularização e
    arquiteturas mais profundas (GRU, LSTM empilhada).
-4. Ampliar a comparação estatística (múltiplas origens de previsão e séries
-   por serventia ou comarca, com teste de Friedman e post hoc de Nemenyi) e
-   construir o ensemble com o combinador ajustado em período de validação.
 
 ## Testes
 
