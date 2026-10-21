@@ -119,9 +119,9 @@ recentes: outubro/2025 a setembro/2026):
 
 As três arquiteturas usam apenas a série de arrecadação (o XGBoost, também o
 calendário, por meio de defasagens, média móvel e sazonalidade cíclica do mês),
-sem variáveis externas. As diferenças entre os modelos não são estatisticamente
-significativas com 12 meses de teste (Friedman, p = 0,78); ver
-`scripts/analise_estatistica.py`.
+sem variáveis externas. As diferenças de desempenho entre os modelos são
+pequenas e devem ser lidas como indicativas, não como evidência de
+superioridade de uma arquitetura sobre as demais.
 
 O XGBoost e o modelo clássico (ARIMA/SARIMA) tiveram desempenho muito próximo e
 superior ao da LSTM — resultado consistente com a **Hipótese H1** do
@@ -148,9 +148,6 @@ multi-step dos 12 meses seguintes (out/2026–set/2027).
    aleatória), hoje usando configurações razoáveis mas não otimizadas.
 3. Reimplementar a LSTM em PyTorch/TensorFlow para viabilizar regularização e
    arquiteturas mais profundas (GRU, LSTM empilhada).
-4. Ampliar a comparação estatística (múltiplas origens de previsão e séries
-   por serventia ou comarca, com teste de Friedman e post hoc de Nemenyi) e
-   construir o ensemble com o combinador ajustado em período de validação.
 
 ## Testes
 
@@ -163,5 +160,5 @@ python3 tests/test_preprocessing.py
 
 Este repositório implementa a metodologia descrita no Projeto de Qualificação de
 Mestrado *"Previsão da Arrecadação de Emolumentos Extrajudiciais do Tribunal de
-Justiça do Maranhão mediante Redes Neurais Recorrentes: uma Análise Comparativa de
-Arquiteturas"* (Capítulo 3 — Metodologia).
+Justiça do Maranhão: uma Análise Comparativa de Arquiteturas de Aprendizado de
+Máquina e Séries Temporais"* (Capítulo 3 — Metodologia).
