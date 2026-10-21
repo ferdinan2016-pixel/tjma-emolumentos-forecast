@@ -1,0 +1,4 @@
+Modelo,Nº de parâmetros/árvores,Tempo de treino+walk-forward (s),Desvio-padrão treino (s),Tempo de previsão multi-step 12m (s)
+SARIMA/SARIMAX,"5 (ordem (1,1,1)x(1,1,1,12) + variância residual)",0.36792466667247936,0.013823931603931132,0.12213706667535007
+LSTM (NumPy),"1169 parâmetros (150 épocas, hidden=16)",15.527751533333989,0.25542256431023697,0.006177266652230173
+XGBoost,300 árvores (max_depth=3),0.6243329666516123,0.013296392409139253,0.06277586667177577
