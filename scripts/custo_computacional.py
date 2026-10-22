@@ -1,7 +1,7 @@
 """
 custo_computacional.py
 
-Mede o custo computacional das três arquiteturas comparadas no Capítulo 3 do
+Mede o custo computacional das sete arquiteturas comparadas no Capítulo 3 do
 Projeto de Qualificação: tempo de treinamento, tempo de inferência (previsão
 multi-step de 12 meses) e complexidade do modelo (nº de parâmetros/árvores).
 
@@ -36,7 +36,11 @@ from src.data.preprocessing import (
 )
 from src.models.classical import walk_forward_sarimax, forecast_multistep_sarimax
 from src.models.xgboost_model import treinar_xgboost, forecast_multistep_xgboost
+from src.models.random_forest_model import treinar_random_forest, forecast_multistep_random_forest
+from src.models.lightgbm_model import treinar_lightgbm, forecast_multistep_lightgbm
+from src.models.catboost_model import treinar_catboost, forecast_multistep_catboost
 from src.models.lstm_numpy import LSTMForecaster
+from src.models.gru_numpy import GRUForecaster
 
 MESES_TESTE = 12
 JANELA_LSTM = 12
@@ -104,20 +108,83 @@ def main():
         "Tempo de previsão multi-step 12m (s)": t_infer_media,
     })
 
-    # --- XGBoost -------------------------------------------------------------
+    # --- GRU (NumPy) -----------------------------------------------------------
+    def treinar_gru():
+        gru = GRUForecaster(hidden_size=16, lr=0.02, seed=42)
+        gru.treinar(X_treino, y_treino, epocas=EPOCAS_LSTM, verbose=False)
+        return gru
+
+    gru_treinada, t_treino_media, t_treino_dp = medir(treinar_gru, repeticoes=N_REPETICOES)
+    n_parametros_gru = sum(getattr(gru_treinada, p).size for p in gru_treinada._params)
+
+    def prever_multistep_gru():
+        serie_completa_norm, media2, desvio2 = normalizar(df["arrecadacao"].values)
+        janela_atual = serie_completa_norm[-JANELA_LSTM:].tolist()
+        for _ in range(12):
+            p = gru_treinada.prever(np.array(janela_atual[-JANELA_LSTM:]))
+            janela_atual.append(p)
+
+    _, t_infer_media, t_infer_dp = medir(prever_multistep_gru, repeticoes=N_REPETICOES)
+
+    linhas.append({
+        "Modelo": "GRU (NumPy)",
+        "Nº de parâmetros/árvores": f"{n_parametros_gru} parâmetros ({EPOCAS_LSTM} épocas, hidden=16)",
+        "Tempo de treino+walk-forward (s)": t_treino_media,
+        "Desvio-padrão treino (s)": t_treino_dp,
+        "Tempo de previsão multi-step 12m (s)": t_infer_media,
+    })
+
+    # --- árvores sobre features de defasagem (XGBoost, Random Forest, LightGBM, CatBoost) ---
     df_feats = construir_features_lag(df)
     treino_feats, _ = train_test_split_temporal(df_feats, meses_teste=MESES_TESTE)
 
     modelo_xgb, t_treino_media, t_treino_dp = medir(treinar_xgboost, treino_feats, repeticoes=N_REPETICOES)
     n_arvores = modelo_xgb.get_booster().num_boosted_rounds()
-
     _, t_infer_media, t_infer_dp = medir(
         forecast_multistep_xgboost, modelo_xgb, df_feats, n_passos=12, repeticoes=N_REPETICOES
     )
-
     linhas.append({
         "Modelo": "XGBoost",
         "Nº de parâmetros/árvores": f"{n_arvores} árvores (max_depth=3)",
+        "Tempo de treino+walk-forward (s)": t_treino_media,
+        "Desvio-padrão treino (s)": t_treino_dp,
+        "Tempo de previsão multi-step 12m (s)": t_infer_media,
+    })
+
+    modelo_rf, t_treino_media, t_treino_dp = medir(treinar_random_forest, treino_feats, repeticoes=N_REPETICOES)
+    n_arvores_rf = modelo_rf.n_estimators
+    _, t_infer_media, t_infer_dp = medir(
+        forecast_multistep_random_forest, modelo_rf, df_feats, n_passos=12, repeticoes=N_REPETICOES
+    )
+    linhas.append({
+        "Modelo": "Random Forest",
+        "Nº de parâmetros/árvores": f"{n_arvores_rf} árvores (max_depth=4)",
+        "Tempo de treino+walk-forward (s)": t_treino_media,
+        "Desvio-padrão treino (s)": t_treino_dp,
+        "Tempo de previsão multi-step 12m (s)": t_infer_media,
+    })
+
+    modelo_lgbm, t_treino_media, t_treino_dp = medir(treinar_lightgbm, treino_feats, repeticoes=N_REPETICOES)
+    n_arvores_lgbm = modelo_lgbm.n_estimators_
+    _, t_infer_media, t_infer_dp = medir(
+        forecast_multistep_lightgbm, modelo_lgbm, df_feats, n_passos=12, repeticoes=N_REPETICOES
+    )
+    linhas.append({
+        "Modelo": "LightGBM",
+        "Nº de parâmetros/árvores": f"{n_arvores_lgbm} árvores (max_depth=3)",
+        "Tempo de treino+walk-forward (s)": t_treino_media,
+        "Desvio-padrão treino (s)": t_treino_dp,
+        "Tempo de previsão multi-step 12m (s)": t_infer_media,
+    })
+
+    modelo_cat, t_treino_media, t_treino_dp = medir(treinar_catboost, treino_feats, repeticoes=N_REPETICOES)
+    n_arvores_cat = modelo_cat.tree_count_
+    _, t_infer_media, t_infer_dp = medir(
+        forecast_multistep_catboost, modelo_cat, df_feats, n_passos=12, repeticoes=N_REPETICOES
+    )
+    linhas.append({
+        "Modelo": "CatBoost",
+        "Nº de parâmetros/árvores": f"{n_arvores_cat} árvores (max_depth=3)",
         "Tempo de treino+walk-forward (s)": t_treino_media,
         "Desvio-padrão treino (s)": t_treino_dp,
         "Tempo de previsão multi-step 12m (s)": t_infer_media,
@@ -130,7 +197,7 @@ def main():
     print("Ambiente de execução:")
     print(f"  CPU: {platform.processor()}")
     print(f"  SO : {platform.system()} {platform.release()}")
-    print(f"  Sem uso de GPU (todas as três arquiteturas rodam em CPU)")
+    print(f"  Sem uso de GPU (todas as sete arquiteturas rodam em CPU)")
     print()
     print(df_custo.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"\nSalvo em {saida}")

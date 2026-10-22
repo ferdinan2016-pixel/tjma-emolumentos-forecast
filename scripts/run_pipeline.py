@@ -7,7 +7,8 @@ Projeto de Qualificação:
     1. Carga dos dados (padrão: série REAL de arrecadação do FERJ/TJMA,
        2019-2026; opção: série sintética, mantida para referência)
     2. Pré-processamento (features de defasagem, janelas, split temporal)
-    3. Treinamento dos três modelos (SARIMA, LSTM, XGBoost)
+    3. Treinamento dos sete modelos (SARIMA, LSTM, GRU, XGBoost, Random
+       Forest, LightGBM, CatBoost)
     4. Avaliação walk-forward (T+1) nos últimos 12 meses observados
     5. Previsão multi-step dos 12 meses seguintes ("ano seguinte")
     6. Geração de gráficos e tabela de métricas em outputs/
@@ -41,12 +42,23 @@ from src.data.preprocessing import (
 from src.evaluation.metrics import resumo_metricas
 from src.models.classical import walk_forward_sarimax, forecast_multistep_sarimax
 from src.models.xgboost_model import treinar_xgboost, walk_forward_xgboost, forecast_multistep_xgboost
+from src.models.random_forest_model import (
+    treinar_random_forest, walk_forward_random_forest, forecast_multistep_random_forest,
+)
+from src.models.lightgbm_model import (
+    treinar_lightgbm, walk_forward_lightgbm, forecast_multistep_lightgbm,
+)
+from src.models.catboost_model import (
+    treinar_catboost, walk_forward_catboost, forecast_multistep_catboost,
+)
 from src.models.lstm_numpy import LSTMForecaster
+from src.models.gru_numpy import GRUForecaster
 from src.visualization.plots import (
     plot_serie_geral,
     plot_comparacao_teste,
     plot_metricas,
     plot_forecast_proximo_ano,
+    plot_serie_completa_com_previsoes,
 )
 
 MESES_TESTE = 12
@@ -82,14 +94,14 @@ def main(fonte: str = "real"):
     resultados_teste = {}
 
     # 2) Modelo 1 — SARIMAX (baseline clássico) --------------------------
-    print("\n[2/6] Treinando modelo clássico (SARIMAX)...")
+    print("\n[2/8] Treinando modelo clássico (SARIMAX)...")
     t0 = time.time()
     pred_sarima = walk_forward_sarimax(treino["arrecadacao"], teste["arrecadacao"])
     resultados_teste["ARIMA/SARIMA"] = pred_sarima
     print(f"      concluído em {time.time()-t0:.1f}s")
 
     # 3) Modelo 2 — LSTM (NumPy) ------------------------------------------
-    print("\n[3/6] Treinando LSTM (implementação NumPy)...")
+    print("\n[3/8] Treinando LSTM (implementação NumPy)...")
     t0 = time.time()
     serie_treino_norm, media, desvio = normalizar(treino["arrecadacao"].values)
     X_treino, y_treino = construir_janelas(serie_treino_norm, janela=JANELA_LSTM)
@@ -107,18 +119,54 @@ def main(fonte: str = "real"):
     resultados_teste["LSTM"] = pred_lstm
     print(f"      concluído em {time.time()-t0:.1f}s ({EPOCAS_LSTM} épocas)")
 
-    # 4) Modelo 3 — XGBoost -----------------------------------------------
-    print("\n[4/6] Treinando XGBoost (features de defasagem)...")
+    # 4) Modelo 3 — GRU (NumPy) -------------------------------------------
+    print("\n[4/8] Treinando GRU (implementação NumPy)...")
     t0 = time.time()
+    gru = GRUForecaster(hidden_size=16, lr=0.02, seed=42)
+    gru.treinar(X_treino, y_treino, epocas=EPOCAS_LSTM, verbose=True)
+
+    pred_gru_norm = []
+    for i in range(MESES_TESTE):
+        janela = serie_completa_norm[idx_inicio_teste + i : idx_inicio_teste + i + JANELA_LSTM]
+        pred_gru_norm.append(gru.prever(janela))
+    pred_gru = desnormalizar(np.array(pred_gru_norm), media, desvio)
+    resultados_teste["GRU"] = pred_gru
+    print(f"      concluído em {time.time()-t0:.1f}s ({EPOCAS_LSTM} épocas)")
+
+    # 5) Modelos 4-7 — árvores sobre features de defasagem ------------------
     df_feats = construir_features_lag(df)
     treino_feats, teste_feats = train_test_split_temporal(df_feats, meses_teste=MESES_TESTE)
+
+    print("\n[5/8] Treinando XGBoost (features de defasagem)...")
+    t0 = time.time()
     modelo_xgb = treinar_xgboost(treino_feats)
     pred_xgb = walk_forward_xgboost(modelo_xgb, teste_feats)
     resultados_teste["XGBoost"] = pred_xgb
     print(f"      concluído em {time.time()-t0:.1f}s")
 
-    # 5) Avaliação ----------------------------------------------------------
-    print(f"\n[5/6] Avaliando modelos no conjunto de teste ({teste.index[0].date()} a {teste.index[-1].date()})...")
+    print("\n[6/8] Treinando Random Forest (features de defasagem)...")
+    t0 = time.time()
+    modelo_rf = treinar_random_forest(treino_feats)
+    pred_rf = walk_forward_random_forest(modelo_rf, teste_feats)
+    resultados_teste["Random Forest"] = pred_rf
+    print(f"      concluído em {time.time()-t0:.1f}s")
+
+    print("\n[7/8] Treinando LightGBM (features de defasagem)...")
+    t0 = time.time()
+    modelo_lgbm = treinar_lightgbm(treino_feats)
+    pred_lgbm = walk_forward_lightgbm(modelo_lgbm, teste_feats)
+    resultados_teste["LightGBM"] = pred_lgbm
+    print(f"      concluído em {time.time()-t0:.1f}s")
+
+    print("\n[8/8] Treinando CatBoost (features de defasagem)...")
+    t0 = time.time()
+    modelo_cat = treinar_catboost(treino_feats)
+    pred_cat = walk_forward_catboost(modelo_cat, teste_feats)
+    resultados_teste["CatBoost"] = pred_cat
+    print(f"      concluído em {time.time()-t0:.1f}s")
+
+    # 6) Avaliação ----------------------------------------------------------
+    print(f"\nAvaliando modelos no conjunto de teste ({teste.index[0].date()} a {teste.index[-1].date()})...")
     y_real = teste["arrecadacao"].values
     linhas_metricas = {nome: resumo_metricas(y_real, pred) for nome, pred in resultados_teste.items()}
     df_metricas = pd.DataFrame(linhas_metricas).T
@@ -131,31 +179,46 @@ def main(fonte: str = "real"):
         df_predicoes[nome] = pred
     df_predicoes.to_csv(RAIZ / "outputs" / "results" / f"predicoes_teste{sufixo}.csv")
 
-    # 6) Previsão dos 12 meses seguintes — multi-step ------------------------
+    # 7) Previsão dos 12 meses seguintes — multi-step ------------------------
     datas_futuras = pd.date_range(df.index[-1] + pd.DateOffset(months=1), periods=12, freq="MS")
-    print(f"\n[6/6] Gerando previsão multi-step para {datas_futuras[0].date()} a {datas_futuras[-1].date()}...")
+    print(f"\nGerando previsão multi-step para {datas_futuras[0].date()} a {datas_futuras[-1].date()}...")
 
     pred_sarima_fut = forecast_multistep_sarimax(df["arrecadacao"], n_passos=12)
 
     serie_completa_norm2, media2, desvio2 = normalizar(df["arrecadacao"].values)
-    janela_atual = serie_completa_norm2[-JANELA_LSTM:].tolist()
+
+    janela_lstm_fut = serie_completa_norm2[-JANELA_LSTM:].tolist()
     pred_lstm_fut_norm = []
     for _ in range(12):
-        p = lstm.prever(np.array(janela_atual[-JANELA_LSTM:]))
+        p = lstm.prever(np.array(janela_lstm_fut[-JANELA_LSTM:]))
         pred_lstm_fut_norm.append(p)
-        janela_atual.append(p)
+        janela_lstm_fut.append(p)
     pred_lstm_fut = desnormalizar(np.array(pred_lstm_fut_norm), media2, desvio2)
 
-    pred_xgb_fut = forecast_multistep_xgboost(modelo_xgb, df_feats, n_passos=12)
+    janela_gru_fut = serie_completa_norm2[-JANELA_LSTM:].tolist()
+    pred_gru_fut_norm = []
+    for _ in range(12):
+        p = gru.prever(np.array(janela_gru_fut[-JANELA_LSTM:]))
+        pred_gru_fut_norm.append(p)
+        janela_gru_fut.append(p)
+    pred_gru_fut = desnormalizar(np.array(pred_gru_fut_norm), media2, desvio2)
 
-    df_forecast_fut = pd.DataFrame(
-        {
-            "ARIMA/SARIMA": pred_sarima_fut,
-            "LSTM": pred_lstm_fut,
-            "XGBoost": pred_xgb_fut,
-        },
-        index=datas_futuras,
-    )
+    pred_xgb_fut = forecast_multistep_xgboost(modelo_xgb, df_feats, n_passos=12)
+    pred_rf_fut = forecast_multistep_random_forest(modelo_rf, df_feats, n_passos=12)
+    pred_lgbm_fut = forecast_multistep_lightgbm(modelo_lgbm, df_feats, n_passos=12)
+    pred_cat_fut = forecast_multistep_catboost(modelo_cat, df_feats, n_passos=12)
+
+    previsoes_futuras = {
+        "ARIMA/SARIMA": pred_sarima_fut,
+        "LSTM": pred_lstm_fut,
+        "GRU": pred_gru_fut,
+        "XGBoost": pred_xgb_fut,
+        "Random Forest": pred_rf_fut,
+        "LightGBM": pred_lgbm_fut,
+        "CatBoost": pred_cat_fut,
+    }
+
+    df_forecast_fut = pd.DataFrame(previsoes_futuras, index=datas_futuras)
     df_forecast_fut.to_csv(RAIZ / "outputs" / "results" / f"previsao_proximos_12_meses{sufixo}.csv")
     print(df_forecast_fut.apply(lambda c: c.map(lambda v: f"R$ {v:,.0f}")).to_string())
 
@@ -170,9 +233,11 @@ def main(fonte: str = "real"):
     plot_serie_geral(df, teste.index[0], str(fig_dir / f"01_serie_geral{sufixo}.png"), fonte=fonte)
     plot_comparacao_teste(teste.index, y_real, resultados_teste, str(fig_dir / f"02_comparacao_teste{sufixo}.png"))
     plot_metricas(df_metricas, str(fig_dir / f"03_comparacao_metricas{sufixo}.png"))
-    plot_forecast_proximo_ano(df, datas_futuras, {
-        "ARIMA/SARIMA": pred_sarima_fut, "LSTM": pred_lstm_fut, "XGBoost": pred_xgb_fut,
-    }, str(fig_dir / f"04_previsao_futura{sufixo}.png"))
+    plot_forecast_proximo_ano(df, datas_futuras, previsoes_futuras, str(fig_dir / f"04_previsao_futura{sufixo}.png"))
+    plot_serie_completa_com_previsoes(
+        df, teste.index, resultados_teste, datas_futuras, previsoes_futuras,
+        str(fig_dir / f"05_serie_completa_previsoes{sufixo}.png"),
+    )
 
     print(f"\nPipeline concluída em {time.time()-inicio:.1f}s.")
     print("Resultados em outputs/results/  |  Gráficos em outputs/figures/")

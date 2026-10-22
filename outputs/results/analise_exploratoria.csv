@@ -1,0 +1,9 @@
+métrica,valor
+média mensal (R$),"38,567,084.23"
+desvio-padrão mensal (R$),"12,076,422.04"
+força da tendência (0-1),0.933
+força da sazonalidade (0-1),0.581
+ADF estatística,-1.221
+ADF p-valor,0.6647
+"série estacionária (ADF, alfa=0,05)",não
+"variação média ano a ano (%, anos completos)",9.1
